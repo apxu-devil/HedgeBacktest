@@ -1,0 +1,17 @@
+{
+    "contents" : "\n\nrequire(quantmod, quietly = T)\nlibrary(dplyr, quietly = T)\nrequire(foreach)\nrequire(tidyr)\nrequire(ggplot2)\n\n\nallUSDRUB = NULL\n\nforeach (i = 1:15) %do% {\n  \n  getFX('USD/RUB', from = paste(2000 + i, '-01-01', sep=''), to = paste(2000 + i + 1, '-01-01', sep=''),  )\n  \n  if(is.null(allUSDRUB)) {\n    \n    allUSDRUB = USDRUB\n    } else {\n      \n      allUSDRUB = c(allUSDRUB, USDRUB)\n    }\n}\n\n\n# allUSDRUB = (allUSDRUB[, c('Date', 'USD.RUB')])\n# allUSDRUB = as.data.frame(allUSDRUB)\n# allUSDRUB$Date = as.character(allUSDRUB$Date)\n# \n# allUSDRUB = .xts(x = allUSDRUB[, 2, drop=F], index = as.Date(allUSDRUB[,1]))\n# \n# plot(allUSDRUB)\n\n\n\nswap3m = read.csv(text=readClipboard(), sep = '\\t')\nnames(swap3m) = c('Date', 'swap3m')\nswap3m$Date = as.Date(swap3m$Date, '%d.%m.%Y')\n\nswap1y = read.csv(text=readClipboard(), sep = '\\t')\nnames(swap1y) = c('Date', 'swap1y')\nswap1y$Date = as.Date(swap1y$Date, '%d.%m.%Y')\n\nswaps = full_join(swap1y, swap3m, by = 'Date')\n\nswaptest = as.xts(x = swaps[,2:3,drop=F], order.by = swaps$Date) %>% na.locf\n\nswaps = na.locf(swaps) \n\nswaps$Date = as.Date(swaps$Date)\nswaps = as.data.frame(swaps)\n\n\nplotswap = gather(swaps, 'period', 'swap', 2:3) %>% filter(Date>as.Date('2005-01-01'))\nggplot(plotswap, aes(x = Date, y=swap, color=period)) + geom_line()\n\n\nrub = read.csv(text=readClipboard())\n\nrub = rub %>% select(3, 8)\nnames(rub) = c('Date', 'UsdRub')\n\nhead(rub)\n\nrub$Dates = as.Date(as.character(rub$Dates), format='%Y%m%d')\n\nallUSDRUB = as.data.frame(allUSDRUB)\nallUSDRUB$Date = row.names(allUSDRUB)\nallUSDRUB$Date = as.Date(allUSDRUB$Date)\nrubswap = left_join(allUSDRUB, swaps, by='Date')\n\nrubswap = (rubswap %>% mutate(swap3m_perc = swap3m/1000000/UsdRub*90, swap1y_perc = swap1y/1000000/UsdRub*365))\nwhich(is.na(rubswap$swap3m))\n\n\nplotswap = gather(rubswap, 'period', 'swap', 5:6) %>% filter(Date>as.Date('2006-01-01'))\nggplot(plotswap, aes(x = Date, y=swap, color=period)) + geom_line()\n\n\n\n",
+    "created" : 1439992612784.000,
+    "dirty" : false,
+    "encoding" : "CP1251",
+    "folds" : "",
+    "hash" : "1056354405",
+    "id" : "8DB09CC5",
+    "lastKnownWriteTime" : 1440769712,
+    "path" : "~/RBackup/HedgeBacktest/dataprepare.R",
+    "project_path" : "dataprepare.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "source_on_save" : false,
+    "type" : "r_source"
+}

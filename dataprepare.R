@@ -32,7 +32,6 @@ foreach (i = 1:15) %do% {
 # plot(allUSDRUB)
 
 
-rubtest = na.locf(allUSDRUB)
 
 swap3m = read.csv(text=readClipboard(), sep = '\t')
 names(swap3m) = c('Date', 'swap3m')
@@ -42,9 +41,10 @@ swap1y = read.csv(text=readClipboard(), sep = '\t')
 names(swap1y) = c('Date', 'swap1y')
 swap1y$Date = as.Date(swap1y$Date, '%d.%m.%Y')
 
-
-
 swaps = full_join(swap1y, swap3m, by = 'Date')
+
+swaptest = as.xts(x = swaps[,2:3,drop=F], order.by = swaps$Date) %>% na.locf
+
 swaps = na.locf(swaps) 
 
 swaps$Date = as.Date(swaps$Date)
