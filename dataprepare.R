@@ -7,6 +7,10 @@ require(tidyr)
 require(ggplot2)
 
 
+#
+# Download and meerge USDRUB data
+#
+
 allUSDRUB = NULL
 
 foreach (i = 1:15) %do% {
@@ -23,15 +27,9 @@ foreach (i = 1:15) %do% {
 }
 
 
-# allUSDRUB = (allUSDRUB[, c('Date', 'USD.RUB')])
-# allUSDRUB = as.data.frame(allUSDRUB)
-# allUSDRUB$Date = as.character(allUSDRUB$Date)
+#
+# Get data and split swaps data
 # 
-# allUSDRUB = .xts(x = allUSDRUB[, 2, drop=F], index = as.Date(allUSDRUB[,1]))
-# 
-# plot(allUSDRUB)
-
-
 
 swap3m = read.csv(text=readClipboard(), sep = '\t')
 names(swap3m) = c('Date', 'swap3m')
@@ -42,32 +40,11 @@ names(swap1y) = c('Date', 'swap1y')
 swap1y$Date = as.Date(swap1y$Date, '%d.%m.%Y')
 
 swaps = full_join(swap1y, swap3m, by = 'Date')
-
-swaptest = as.xts(x = swaps[,2:3,drop=F], order.by = swaps$Date) %>% na.locf
-
-swaps = na.locf(swaps) 
-
-swaps$Date = as.Date(swaps$Date)
-swaps = as.data.frame(swaps)
+swaps = as.xts(x = swaps[,2:3,drop=F], order.by = swaps$Date) %>% na.locf
 
 
-plotswap = gather(swaps, 'period', 'swap', 2:3) %>% filter(Date>as.Date('2005-01-01'))
-ggplot(plotswap, aes(x = Date, y=swap, color=period)) + geom_line()
+rubswap = cbind.xts(allUSDRUB, swaps, all = c(T,T)) %>% na.locf %>% na.omit
 
-
-rub = read.csv(text=readClipboard())
-
-rub = rub %>% select(3, 8)
-names(rub) = c('Date', 'UsdRub')
-
-head(rub)
-
-rub$Dates = as.Date(as.character(rub$Dates), format='%Y%m%d')
-
-allUSDRUB = as.data.frame(allUSDRUB)
-allUSDRUB$Date = row.names(allUSDRUB)
-allUSDRUB$Date = as.Date(allUSDRUB$Date)
-rubswap = left_join(allUSDRUB, swaps, by='Date')
 
 rubswap = (rubswap %>% mutate(swap3m_perc = swap3m/1000000/UsdRub*90, swap1y_perc = swap1y/1000000/UsdRub*365))
 which(is.na(rubswap$swap3m))
