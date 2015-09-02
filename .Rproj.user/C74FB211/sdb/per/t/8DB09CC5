@@ -1,12 +1,12 @@
 {
-    "contents" : "\n\nrequire(quantmod, quietly = T)\nlibrary(dplyr, quietly = T)\nrequire(foreach)\nrequire(tidyr)\nrequire(ggplot2)\n\n\n#\n# Download and meerge USDRUB data\n#\n\nallUSDRUB = NULL\n\nforeach (i = 1:15) %do% {\n  \n  getFX('USD/RUB', from = paste(2000 + i, '-01-01', sep=''), to = paste(2000 + i + 1, '-01-01', sep=''),  )\n  \n  if(is.null(allUSDRUB)) {\n    \n    allUSDRUB = USDRUB\n    } else {\n      \n      allUSDRUB = c(allUSDRUB, USDRUB)\n    }\n}\n\n\n#\n# Get data and split swaps data\n# \n\nswap3m = read.csv(text=readClipboard(), sep = '\\t')\nnames(swap3m) = c('Date', 'swap3m')\nswap3m$Date = as.Date(swap3m$Date, '%d.%m.%Y')\n\nswap1y = read.csv(text=readClipboard(), sep = '\\t')\nnames(swap1y) = c('Date', 'swap1y')\nswap1y$Date = as.Date(swap1y$Date, '%d.%m.%Y')\n\nswaps = full_join(swap1y, swap3m, by = 'Date')\nswaps = as.xts(x = swaps[,2:3,drop=F], order.by = swaps$Date) %>% na.locf\n\n\nrubswap = cbind.xts(allUSDRUB, swaps, all = c(T,T)) %>% na.locf %>% na.omit\n\n\nrubswap = (rubswap %>% mutate(swap3m_perc = swap3m/1000000/UsdRub*90, swap1y_perc = swap1y/1000000/UsdRub*365))\nwhich(is.na(rubswap$swap3m))\n\n\nplotswap = gather(rubswap, 'period', 'swap', 5:6) %>% filter(Date>as.Date('2006-01-01'))\nggplot(plotswap, aes(x = Date, y=swap, color=period)) + geom_line()\n\n\n\n",
+    "contents" : "\n\nrequire(quantmod, quietly = T)\nlibrary(dplyr, quietly = T)\nrequire(foreach)\nrequire(tidyr)\nrequire(ggplot2)\n\noptions(scipen = 999)\n\n#\n# Download and meerge USDRUB data\n#\n\nallUSDRUB = NULL\nforeach (i = 1:15) %do% {\n  \n  getFX('USD/RUB', from = paste(2000 + i, '-01-01', sep=''), to = paste(2000 + i + 1, '-01-01', sep=''),)\n  if(is.null(allUSDRUB)) allUSDRUB=USDRUB else allUSDRUB=c(allUSDRUB, USDRUB)\n}\n\n\n#\n# Get data and split swaps data\n# \n\nswap3m = read.csv(text=readClipboard(), sep = '\\t')\nnames(swap3m) = c('Date', 'swap3m')\nswap3m$Date = as.Date(swap3m$Date, '%d.%m.%Y')\n\nswap1y = read.csv(text=readClipboard(), sep = '\\t')\nnames(swap1y) = c('Date', 'swap1y')\nswap1y$Date = as.Date(swap1y$Date, '%d.%m.%Y')\n\nswaps = full_join(swap1y, swap3m, by = 'Date')\nswaps = as.xts(x = swaps[,2:3,drop=F], order.by = swaps$Date) %>% na.locf\n\n# Merge rub and swap data\nrubswap = cbind.xts(allUSDRUB, swaps, all = c(T,T)) %>% na.locf %>% na.omit\n\n# Calc swaps in % annual\nrubswap$swap3m_perc = (as.data.frame(rubswap) %>% mutate(swp3 = swap3m/1000000/USD.RUB*90) %>% select(swp3))[[1]]\nrubswap$swap1y_perc = (as.data.frame(rubswap) %>% mutate(swp1 = swap1y/1000000/USD.RUB*365) %>% select(swp1))[[1]]\n\n# Plot swaps\nautoplot.zoo(window(rubswap[,4:5], start = '2006-01-01'), facets = NULL)\n\n# Save data\nsave(rubswap, file = 'rubswap.RData')\n\n\n",
     "created" : 1439992612784.000,
     "dirty" : false,
     "encoding" : "CP1251",
     "folds" : "",
-    "hash" : "1721951126",
+    "hash" : "3294968814",
     "id" : "8DB09CC5",
-    "lastKnownWriteTime" : 1441033454,
+    "lastKnownWriteTime" : 1441205848,
     "path" : "~/RBackup/HedgeBacktest/dataprepare.R",
     "project_path" : "dataprepare.R",
     "properties" : {
