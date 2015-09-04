@@ -1,0 +1,17 @@
+{
+    "contents" : "\nrequire(fOptions)\n\n\nrub3m = rubmrtk[, c('USD.RUB', 'swap3m_perc', 'iv3m')]\nnames(rub3m) = c('rub', 'swap', 'iv')\nrub3m$iv = rub3m$iv/100\n\nrub3m$call = (as.data.frame(rub3m) %>% mutate(call = GBSOption('c', rub, rub, 90/365, swap, 0, iv)@price))[, c('call')]\nautoplot(rub3m$call)\n\n\nrub3m$rubup = diff(rub3m$rub, 90*5/7) \n\nrub3m$rubup[which(rub3m$rubup<0),]=0\n\n# Financial result at the start point\nrub3m$result = (lag(rub3m$rubup, k = -90*5/7) - rub3m$call)\n\nhead(rub3m$resultperc)\ntail(rub3m$resultperc)\n\nrub3m$resultperc = rub3m$result / rub3m$rub\nrub3m$rubupperc = rub3m$rubup / rub3m$rub\n\nrub3m$rubup[which(is.na( rub3m$rubup))] = 0\n\nautoplot(rub3m['2010/2013', c('rubupperc', 'resultperc')], geom='area')\n\nsummary(rub3m$resultperc['2010/2013'])\nhist(rub3m$resultperc['2010/2013'], breaks = 30)\n\nqqnorm(na.omit(rub3m$resultperc[,1]))\n\n\n",
+    "created" : 1441290325294.000,
+    "dirty" : false,
+    "encoding" : "CP1251",
+    "folds" : "",
+    "hash" : "3693793058",
+    "id" : "E377B485",
+    "lastKnownWriteTime" : 1441370758,
+    "path" : "~/RBackup/HedgeBacktest/callbacktest.R",
+    "project_path" : "callbacktest.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "source_on_save" : false,
+    "type" : "r_source"
+}
