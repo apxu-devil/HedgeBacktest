@@ -25,6 +25,7 @@ summary(rub3m$callperc)
 
 # USD price change during hedge period
 rub3m$diff = lag(diff(rub3m$rub, 90*5/7), k=-90*5/7)
+rub3m$roc = rub3m$diff / rub3m$rub
 
   # Only risings
   rub3m$diffup = rub3m$diff
@@ -34,10 +35,24 @@ rub3m$diff = lag(diff(rub3m$rub, 90*5/7), k=-90*5/7)
   rub3m$diff_down = rub3m$diff
   rub3m$diff_down[which(rub3m$diff_down>0),]=0
 
-head(rub3m)
-tail(rub3m)
+RollRor = - rub3m$diff / rub3m$rub
+autoplot(RollRor)
+summary(RollRor)
+# hist(RollRor, breaks=100, main='xxx', col=rgb(171,173, 175, maxColorValue = 256), border=NULL)
 
+
+ # Price change to call price
 rub3m$difftocall = rub3m$diff / rub3m$call 
+
+absDiffToCall = abs(rub3m$diff) / rub3m$call
+summary(absDiffToCall)
+autoplot(absDiffToCall)
+
+
+autoplot(merge(absDiffToCall, rub3m$difftocall), facets=NULL )
+
+summary(as.data.frame(rub3m$difftocall), digits=4)
+
 
 summary(rub3m$calltodiff[which(rub3m$calltodiff>0),])
 summary(rub3m$calltodiff[which(rub3m$calltodiff<0),])
