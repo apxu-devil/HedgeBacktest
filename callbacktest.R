@@ -3,8 +3,10 @@ require(fOptions)
 require(xts)
 require(dplyr)
 require(ggplot2)
+require(scales)
 
 # Final data preparations
+load('rubswap.RData')
 rub3m = rubmrtk[, c('USD.RUB', 'swap3m_perc', 'iv3m')]
 names(rub3m) = c('rub', 'swap', 'iv')
 rub3m$iv = rub3m$iv/100
@@ -18,28 +20,52 @@ rub3m$put  = (as.data.frame(rub3m) %>% mutate(put = GBSOption('p', rub, rub, 90/
 
 
 # Option price as base asset ratio
-rub3m$callperc = rub3m$call / rub3m$rub
-hist(rub3m$callperc, breaks=30)
-summary(rub3m$callperc)
+local({
+  
+  callperc = rub3m$call / rub3m$rub
+  hist(callperc, breaks=30, main = 'Call/Usd distribution')
+  cat('Average call price: ', percent(mean(callperc)))
+  
+})
 
 
-# USD price change during hedge period
-rub3m$diff = lag(diff(rub3m$rub, 90*5/7), k=-90*5/7)
-rub3m$roc = rub3m$diff / rub3m$rub
+# What if we do not hedge?
 
-  # Only risings
-  rub3m$diffup = rub3m$diff
-  rub3m$diffup[which(rub3m$diffup<0),]=0
+local({
+  
+  usd_diff = lag(diff(rub3m$rub, 90*5/7), k=-90*5/7)
+  usd_roc = usd_diff /  rub3m$rub %>% na.omit
+  autoplot(usd_roc)
+  #hist(usd_diff, breaks=30)
+  cat('Average 90-days USD price change: ', format(mean(usd_roc, na.rm = T), digits=4))
+  
+})
 
-  # Only falling
-  rub3m$diff_down = rub3m$diff
-  rub3m$diff_down[which(rub3m$diff_down>0),]=0
+# Does the rise of USD covers call premium?
 
-RollRor = - rub3m$diff / rub3m$rub
-autoplot(RollRor)
-summary(RollRor)
-# hist(RollRor, breaks=100, main='xxx', col=rgb(171,173, 175, maxColorValue = 256), border=NULL)
+  usd_up = usd_diff; usd_up[usd_up<0, ]=0
+  
+  call_result = (usd_up - rub3m$call) / rub3m$rub
+  data.frame(
+    Period = c('All', '2010 - 2013', '2014+'), 
+    Result = format(c(mean(call_result, na.rm = T), 
+               mean(call_result['2010/2013']), 
+               mean(call_result['2014'])
+               ), digits=2)
+    )
+  
 
+  # If USD rises, average coverage
+  mean(call_result[call_result>0,])
+  
+  # In all cases, average coverage
+  mean(na.omit(call_result))
+
+
+
+usd_down = usd_diff; usd_down[usd_down>0, ]=0
+mean(-usd_diff[usd_diff<0, ]/rub3m$rub)
+mean((-usd_diff[usd_diff<0, ] - rub3m$call)/rub3m$rub, na.rm = T)
 
  # Price change to call price
 rub3m$difftocall = rub3m$diff / rub3m$call 
@@ -48,54 +74,11 @@ absDiffToCall = abs(rub3m$diff) / rub3m$call
 summary(absDiffToCall)
 autoplot(absDiffToCall)
 
-
-autoplot(merge(absDiffToCall, rub3m$difftocall), facets=NULL )
-
-summary(as.data.frame(rub3m$difftocall), digits=4)
-
-
-summary(rub3m$calltodiff[which(rub3m$calltodiff>0),])
-summary(rub3m$calltodiff[which(rub3m$calltodiff<0),])
-
-hist(rub3m$calltodiff, breaks = 100)
-
-summary(rub3m$calltodiff)
-
-
-
-
-# Financial result at the start point
-# USD change minus option price
-rub3m$result = (lag(rub3m$rubup, k = -90*5/7) - rub3m$call) # result for option only
- 
-rub3m$result1 = (lag(rub3m$absdiff, k = -90*5/7) - rub3m$call) # result for option and usd-fall
-
-autoplot(rub3m[,c('result', 'result1')], facet=NULL)
-
-head(rub3m$resultperc)
-tail(rub3m$resultperc)
-
-#test
-rub3m$rollror = diff(rub3m$rub, k = 90*5/7)/rub3m$rub)
-
-rub3m$normal = diff(rub3m$rub)/rub3m$rub+1 
-
-autoplot(
-  cumprod(rub3m$normal[-1,] )
+ autoplot(
+   merge(call_result, -usd_diff/rub3m$rub), facets=NULL
   )
-#--=
 
+mean(call_result-usd_diff/rub3m$rub, na.rm=T)
 
-rub3m$resultperc = rub3m$result / rub3m$rub
-rub3m$rubupperc = rub3m$rubup / rub3m$rub
-
-rub3m$rubup[which(is.na( rub3m$rubup))] = 0
-
-autoplot(rub3m['2010/2013', c('rubupperc', 'resultperc')], geom='area')
-
-summary(rub3m$resultperc['2010/2013'])
-hist(rub3m$resultperc['2010/2013'], breaks = 30)
-
-qqnorm(na.omit(rub3m$resultperc[,1]))
 
 

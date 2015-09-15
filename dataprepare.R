@@ -19,6 +19,7 @@ foreach (i = 1:15) %do% {
   if(is.null(allUSDRUB)) allUSDRUB=USDRUB else allUSDRUB=c(allUSDRUB, USDRUB)
 }
 
+rm(USDRUB)
 allUSDRUB = allUSDRUB[which(ROC(allUSDRUB$USD.RUB)!=0), ]
 
 
@@ -36,11 +37,11 @@ names(iv) = c('iv1m', 'iv3m', 'iv1y')
 
 ### TODO: Change data source to files
 
-swap3m = read.csv(text=readClipboard(), sep = '\t')
+swap3m = read.csv(file='swap3m.csv', sep = ';')
 names(swap3m) = c('Date', 'swap3m')
 swap3m$Date = as.Date(swap3m$Date, '%d.%m.%Y')
 
-swap1y = read.csv(text=readClipboard(), sep = '\t')
+swap1y = read.csv(file='swap1y.csv', sep = ';')
 names(swap1y) = c('Date', 'swap1y')
 swap1y$Date = as.Date(swap1y$Date, '%d.%m.%Y')
 
@@ -57,10 +58,7 @@ rubmrtk = cbind.xts(rubswap, iv, all = c(T,T)) %>% na.omit
 rubmrtk$swap3m_perc = (as.data.frame(rubmrtk) %>% mutate(swp3 = swap3m/1000000/USD.RUB*90) %>% select(swp3))[[1]]
 rubmrtk$swap1y_perc = (as.data.frame(rubmrtk) %>% mutate(swp1 = swap1y/1000000/USD.RUB*365) %>% select(swp1))[[1]]
 
-# Plot swaps
-autoplot.zoo(window(rubswap[,4:5], start = '2006-01-01'), facets = NULL)
-
 # Save data
-save(rubswap, file = 'rubswap.RData')
+save(rubmrtk, file = 'rubswap.RData')
 
 
