@@ -6,6 +6,8 @@ require(ggplot2)
 require(scales)
 require(grid)
 require(gridExtra)
+require(foreach)
+require(TTR)
 
 # Final data preparations
 load('rubswap.RData')
@@ -13,58 +15,81 @@ rub3m = rubmrtk[, c('USD.RUB', 'swap3m_perc', 'iv3m')]
 names(rub3m) = c('rub', 'swap', 'iv')
 rub3m$iv = rub3m$iv/100
 
+
+days = 90
+otm = 0.05
+
 #
 # 3m options prices every day
 # 
-rub3m$call = (as.data.frame(rub3m) %>% mutate(call = GBSOption('c', rub, rub, 90/365, swap, 0, iv)@price))[, c('call')]
 
+rub3m$call = rub3m %>% 
+  as.data.frame %>% 
+  mutate(call = GBSOption('c', rub, rub*(1+otm), days/365, 0, swap, iv)@price) %>%
+  select(call) %>% unlist
 
 
 # What if we do not hedge?
 
-
-  usd_diff = lag(diff(rub3m$rub, 90*5/7), k=-90*5/7)
+  usd_diff = diff(rub3m$rub, days*5/7) %>% lag(., k=-days*5/7)
   usd_roc = usd_diff /  rub3m$rub %>% na.omit
-
-
+  usd_roc = ROC(rub3m$rub, days*5/7) %>% na.omit
+  
+  rub3m$usd_roc = ROC(rub3m$rub, days*5/7)
 
 
 # +--------------+
 # | Call result
 # +--------------+
 
-  usd_up = usd_diff 
+  usd_up = lag.xts(rub3m$rub, k=-days*5/7) - rub3m$rub*(1+otm)  %>% na.omit #usd_diff
   usd_up[usd_up<0,] = 0
   
   call_result = (usd_up - rub3m$call) / rub3m$rub
-   
+  
+  pl = (usd_up - rub3m$call)/rub3m$call
+  
+  #cbind(usd_up,rub3m$call)
+  
+  hist(pl[pl>0])
+  
+  length(pl[pl>0])/length(pl)
+  length(pl[pl>10])/length(pl)
 
   # Средний прирост доллара за 90 дней:
 
   usd_roc_df =data.frame(
     Period = c('All', '2010 - 2013', '2014+'), 
     USD_risk = c(mean(-usd_roc, na.rm = T), 
-                      mean(-usd_roc['2010/2013'], na.rm = T), 
-                      mean(-usd_roc['2014/2015'], na.rm = T)) )
-  
+                 mean(-usd_roc['2010/2013'], na.rm = T), 
+                 mean(-usd_roc['2014::'], na.rm = T)),
+    SD = c(sd(usd_roc, na.rm = T), 
+           sd(usd_roc['2010/2013'], na.rm=T), 
+           sd(usd_roc['2014::']))
+    ) %>% mutate(., variance=SD/USD_risk)
+    
 
   # Средний результа по коллу за 90 дней:
  
   call_res_df = data.frame(
     Period = c('All', '2010 - 2013', '2014+'), 
     Call_result = c(mean(call_result, na.rm = T), 
-               mean(call_result['2010/2013']), 
-               mean(call_result['2014'])))
+                    mean(call_result['2010/2013'], na.rm=T), 
+                    mean(call_result['2014::'])), 
+    SD = c(sd(call_result, na.rm = T), 
+           sd(call_result['2010/2013'], na.rm=T), 
+           sd(call_result['2014::']))
+    ) %>% mutate(., variance=SD/Call_result)
   
 
 aver_hedge_res = full_join(usd_roc_df, call_res_df, by = 'Period') %>% mutate(Hedged_risk = USD_risk + Call_result)
 
 foreach( i=2:4) %do% {
-  aver_hedge_res[, i] = paste(round(aver_hedge_res[, i]  * 100, digits = 2), '%', sep='')
+  aver_hedge_res[, i] = paste(round(aver_hedge_res[, i]*100, digits = 2), '%', sep='')
 }
 
 names(aver_hedge_res) = c('Период', 'Валютный риск', 'Результат опциона', 'Хеджированный риск')
-res_grob = tableGrob(aver_hedge_res, name='test')
+res_grob = tableGrob(aver_hedge_res)
 
 
 #
