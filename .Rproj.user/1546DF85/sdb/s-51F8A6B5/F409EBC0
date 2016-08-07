@@ -1,0 +1,25 @@
+{
+    "contents" : "",
+    "created" : 1470592338497.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "F409EBC0",
+    "lastKnownWriteTime" : 13229817834242158,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "v3kdfwc0q0",
+        "caption" : "rub3m",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=rub3m&cache_key=v3kdfwc0q0",
+        "displayedObservations" : 1363,
+        "environment" : "",
+        "object" : "rub3m",
+        "totalObservations" : 1363,
+        "variables" : 4
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "type" : "r_dataframe"
+}

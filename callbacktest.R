@@ -10,14 +10,13 @@ require(foreach)
 require(TTR)
 
 # Final data preparations
-load('rubswap.RData')
-rub3m = rubmrtk[, c('USD.RUB', 'swap3m_perc', 'iv3m')]
+load('rub.RData')
+rub3m = rub[, c('rub', 'swap3m', 'iv3m')]
 names(rub3m) = c('rub', 'swap', 'iv')
-rub3m$iv = rub3m$iv/100
 
 
 days = 90
-otm = 0.05
+otm = 0
 
 #
 # 3m options prices every day
@@ -27,6 +26,64 @@ rub3m$call = rub3m %>%
   as.data.frame %>% 
   mutate(call = GBSOption('c', rub, rub*(1+otm), days/365, 0, swap, iv)@price) %>%
   select(call) %>% unlist
+
+
+#
+# Window of 3m option
+#
+
+
+MaxPlRatio = function(data = data_window, days = 90, otm = 0){
+  
+  #day_1 = index(rub3m[1])
+  #day_t = day_1 + days
+  #data_window = rub3m[paste0(day_1,'::',day_t)]
+  
+  data$t = last(index(data)) - index(data)
+  
+  strike = as.numeric(data[1, 'rub'] * (1+otm))
+  
+  call_t = data %>% 
+    as.data.frame %>% 
+    mutate(call_t = GBSOption('c', rub, strike, days/365, 0, swap, iv)@price) %>%
+    select(call_t)
+  
+  call_t = as.numeric(unlist(call_t))
+  
+  pl_ratio = call_t / call_t[1] - 1
+  plr_max = max(pl_ratio)
+  
+  return(plr_max)
+}
+
+
+pls_maxs = NULL
+
+for(i in 1:(nrow(rub3m)-1) ){ #(nrow(rub3m)-1)
+  
+  day_1 = index(rub3m[i])
+  day_t = day_1 + days
+  data_window = rub3m[paste0(day_1,'::',day_t)]
+  
+  pls_max = MaxPlRatio(data_window)
+  pls_maxs = c(pls_maxs, pls_max)
+  
+}
+
+plot(pls_maxs)
+
+
+plr_interv = pretty(pls_maxs, n = 30)
+plr_cuts = cut(pls_maxs, plr_interv, include.lowest=T)
+plr_freq = table(plr_cuts)/length(pls_maxs)
+plr_cumfreq = 1-cumsum(plr_freq)
+
+plot(plr_cumfreq)
+
+plr_n = length(pls_maxs)
+plr_prob = length(pls_maxs[pls_maxs>5]) / plr_n
+
+
 
 
 # What if we do not hedge?

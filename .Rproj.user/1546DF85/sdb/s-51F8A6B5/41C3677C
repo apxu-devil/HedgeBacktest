@@ -1,0 +1,17 @@
+{
+    "contents" : "\n\nrequire(quantmod, quietly = T)\nlibrary(dplyr, quietly = T)\nrequire(foreach)\nrequire(tidyr)\nrequire(ggplot2)\n\noptions(scipen = 999)\n\n#\n# Download and meerge USDRUB data\n#\n\nallUSDRUB = NULL\nforeach (i = 1:15) %do% {\n  \n  getFX('USD/RUB', from = paste0(2000 + i, '-01-01'), to = paste0(2000 + i + 1, '-01-01'))\n  if(is.null(allUSDRUB)) allUSDRUB=USDRUB else allUSDRUB=c(allUSDRUB, USDRUB)\n}\n\nrm(USDRUB)\nrub = allUSDRUB[which(ROC(allUSDRUB$USD.RUB)!=0), ]\nnames(rub)[1] = 'rub'\n\n\n\n\n#\n# Get data and split swaps data\n# \n\n\nswap3m = read.csv(file='swap3m.csv', sep = ';')\nnames(swap3m) = c('Date', 'swap3m')\nswap3m$Date = as.Date(swap3m$Date, '%d.%m.%Y')\n\nswap1y = read.csv(file='swap1y.csv', sep = ';')\nnames(swap1y) = c('Date', 'swap1y')\nswap1y$Date = as.Date(swap1y$Date, '%d.%m.%Y')\n\n\nswaps = full_join(swap1y, swap3m, by = 'Date')\nswaps = as.xts(x = swaps[,2:3,drop=F], order.by = swaps$Date) %>% na.locf\n\n# temp\n#allUSDRUB = rub3m$rub\n\n# Merge rub and swap data\nrub = cbind.xts(allUSDRUB, swaps, all = c(F,T)) %>% na.locf %>% na.omit\n\n# Swaps in % annual\n\nrub$swap3m = (as.data.frame(rub) %>% mutate(swap3m = swap3m/10000/rub/90*365))$swap3m\nrub$swap1y = (as.data.frame(rub) %>% mutate(swap1y = swap1y/10000/rub))$swap1y\n#\n# Get historical IV\n# \n\niv = read.csv('usdrub_iv.csv', sep=';') \niv = xts(x = iv[,2:4]/100, order.by = as.Date(as.character(iv[,1]), format='%d.%m.%Y'))\nnames(iv) = c('iv1m', 'iv3m', 'iv1y')\nrub = cbind.xts(rub, iv, all = c(T,T)) %>% na.omit\n\n# Save data\nsave(rub, file = 'rub.RData')\n\n\n",
+    "created" : 1470591639366.000,
+    "dirty" : false,
+    "encoding" : "CP1251",
+    "folds" : "",
+    "hash" : "3538174628",
+    "id" : "41C3677C",
+    "lastKnownWriteTime" : 1470592315,
+    "path" : "~/MyR/HedgeBacktest/dataprepare.R",
+    "project_path" : "dataprepare.R",
+    "properties" : {
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "type" : "r_source"
+}

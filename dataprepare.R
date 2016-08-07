@@ -20,7 +20,8 @@ foreach (i = 1:15) %do% {
 }
 
 rm(USDRUB)
-allUSDRUB = allUSDRUB[which(ROC(allUSDRUB$USD.RUB)!=0), ]
+rub = allUSDRUB[which(ROC(allUSDRUB$USD.RUB)!=0), ]
+names(rub)[1] = 'rub'
 
 
 
@@ -62,6 +63,6 @@ names(iv) = c('iv1m', 'iv3m', 'iv1y')
 rub = cbind.xts(rub, iv, all = c(T,T)) %>% na.omit
 
 # Save data
-save(rubmrtk, file = 'rub.RData')
+save(rub, file = 'rub.RData')
 
 
