@@ -29,17 +29,13 @@ rub3m$call = rub3m %>%
 
 
 #
-# Window of 3m option
+# Maximum PL ration in option live
 #
 
+MaxPlRatio = function(data = data_window, days = 90, otm = 0, at_exp = F){
+  
 
-MaxPlRatio = function(data = data_window, days = 90, otm = 0){
-  
-  #day_1 = index(rub3m[1])
-  #day_t = day_1 + days
-  #data_window = rub3m[paste0(day_1,'::',day_t)]
-  
-  data$t = last(index(data)) - index(data)
+    data$t = last(index(data)) - index(data)
   
   strike = as.numeric(data[1, 'rub'] * (1+otm))
   
@@ -56,35 +52,52 @@ MaxPlRatio = function(data = data_window, days = 90, otm = 0){
   return(plr_max)
 }
 
+#
+# Max PL ratio for all options
+#
 
-pls_maxs = NULL
-
-for(i in 1:(nrow(rub3m)-1) ){ #(nrow(rub3m)-1)
+AllMaxPlRations = function(data = rub3m, days = 90, otm = 0){
   
-  day_1 = index(rub3m[i])
-  day_t = day_1 + days
-  data_window = rub3m[paste0(day_1,'::',day_t)]
+  pls_maxs = NULL
   
-  pls_max = MaxPlRatio(data_window)
-  pls_maxs = c(pls_maxs, pls_max)
+  for(i in 1:(nrow(data)-1) ){ #(nrow(rub3m)-1)
+    
+    day_1 = index(data[i])
+    day_t = day_1 + days
+    data_window = data[paste0(day_1,'::',day_t)]
+    
+    pls_max = MaxPlRatio(data_window, days = days, otm = otm)
+    pls_maxs = c(pls_maxs, pls_max)
+    
+  }
   
+  return(pls_maxs)
 }
+
+
 
 plot(pls_maxs)
 
+pls_max_otms = sapply(c(-0.1, -0.05, 0, 0.05, 0.1, 0.15), function(x)AllMaxPlRations(otm=x)) 
 
-plr_interv = pretty(pls_maxs, n = 30)
-plr_cuts = cut(pls_maxs, plr_interv, include.lowest=T)
-plr_freq = table(plr_cuts)/length(pls_maxs)
+pls_max_otms = as.data.frame(pls_max_otms) %>% as.tbl
+
+
+plsm = pls_max_otms$V5
+
+plr_interv = pretty(plsm, n = 30)
+plr_cuts = cut(plsm, plr_interv, include.lowest=T)
+plr_freq = table(plr_cuts)/length(plsm)
 plr_cumfreq = 1-cumsum(plr_freq)
 
 plot(plr_cumfreq)
 
-plr_n = length(pls_maxs)
-plr_prob = length(pls_maxs[pls_maxs>5]) / plr_n
+plr_n = length(plsm)
+plr_prob = length(plsm[plsm>5]) / plr_n
+plr_prob
 
-
-
+require(ggvis)
+pls_max_otms %>% ggvis(~V2,~V1) %>% layer_points()
 
 # What if we do not hedge?
 
