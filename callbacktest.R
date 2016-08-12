@@ -8,6 +8,8 @@ require(grid)
 require(gridExtra)
 require(foreach)
 require(TTR)
+require(ggvis)
+require(tidyr)
 
 # Final data preparations
 load('rub.RData')
@@ -60,43 +62,53 @@ MaxPlRatio = function(data, days = 90, otm = 0, at_exp = F){
 
 AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F){
   
-  pls_maxs = NULL
-  
-  for(i in 1:(nrow(data)-1) ){ #(nrow(rub3m)-1)
+  pls_maxs= sapply(1:(nrow(data)), function(x){
+
+      i=x
+      day_1 = index(data[i])
+      day_t = day_1 + days
+      
+    if(!(day_t > last(index(data)))){
+      
+      data_window = data[paste0(day_1,'::',day_t)]
+      pls_max = MaxPlRatio(data_window, days = days, otm = otm, at_exp = at_exp)
+      
+    } else {pls_max = NULL}
+      
+      pls_max
     
-    day_1 = index(data[i])
-    day_t = day_1 + days
+  }) %>% unlist
     
-    if(day_t > last(index(rub3m))) break  #exit loop if last date out of range
-    
-    data_window = data[paste0(day_1,'::',day_t)]
-    
-    pls_max = MaxPlRatio(data_window, days = days, otm = otm, at_exp = at_exp)
-    pls_maxs = c(pls_maxs, pls_max)
-    
-  }
-  
+  #return(xts(x = pls_maxs, order.by = index(data)))
   return(pls_maxs)
 }
 
+#
+# Plot result
+#
 
-day_1 = index(rub3m[1])
-day_t = last(index(rub3m)) - days
-indexs = rub3m[paste0(day_1,'::',day_t)] %>% index
 
 
+pls_max_otms = {
+  
+  pls_max_otms = sapply(c(0, 0.05), function(x)AllMaxPlRations(otm=x, at_exp=T)) 
+  pls_max_otms = as.data.frame(pls_max_otms) 
+  
+  day_1 = index(rub3m[1])
+  day_t = last(index(rub3m)) - days
+  indexs = rub3m[paste0(day_1,'::',day_t)] %>% index
+  pls_max_otms$dates = indexs
+  
+  pls_max_otms
+}
+
+
+as.tbl(pls_max_otms)
 
 pls_maxs = AllMaxPlRations(at_exp=T)
 pls_maxs1 = AllMaxPlRations(at_exp=F)
 plot(pls_maxs)
 plot(pls_maxs1)
-
-pls_max_otms = sapply(c(-0.05, 0, 0.05), function(x)AllMaxPlRations(otm=x, at_exp=F)) 
-
-pls_max_otms = as.data.frame(pls_max_otms) 
-as.tbl(pls_max_otms)
-pls_max_otms$dates = indexs
-
 
 pls_max_otms_g = gather(pls_max_otms, key=otms, value = pl, -dates)
 pls_max_otms_g %>% ggvis(~dates,~pl, fill=~otms) %>% layer_lines()
