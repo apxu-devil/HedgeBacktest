@@ -30,18 +30,20 @@ rub3m$call = rub3m %>%
 
 #
 # Maximum PL ration in option live
-#
+# data = data_window
 
-MaxPlRatio = function(data = data_window, days = 90, otm = 0, at_exp = F){
+MaxPlRatio = function(data, days = 90, otm = 0, at_exp = F){
   
-
-    data$t = last(index(data)) - index(data)
+ if(at_exp)
+   data = c(data[1], data[length(index(data))]) #calc only the first and the last days
+  
+ data$t = last(index(data)) - index(data) #days til exp column
   
   strike = as.numeric(data[1, 'rub'] * (1+otm))
   
   call_t = data %>% 
     as.data.frame %>% 
-    mutate(call_t = GBSOption('c', rub, strike, days/365, 0, swap, iv)@price) %>%
+    mutate(call_t = GBSOption('c', rub, strike, t/365, 0, swap, iv)@price) %>%
     select(call_t)
   
   call_t = as.numeric(unlist(call_t))
@@ -56,7 +58,7 @@ MaxPlRatio = function(data = data_window, days = 90, otm = 0, at_exp = F){
 # Max PL ratio for all options
 #
 
-AllMaxPlRations = function(data = rub3m, days = 90, otm = 0){
+AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F){
   
   pls_maxs = NULL
   
@@ -64,9 +66,12 @@ AllMaxPlRations = function(data = rub3m, days = 90, otm = 0){
     
     day_1 = index(data[i])
     day_t = day_1 + days
+    
+    if(day_t > last(index(rub3m))) break  #exit loop if last date out of range
+    
     data_window = data[paste0(day_1,'::',day_t)]
     
-    pls_max = MaxPlRatio(data_window, days = days, otm = otm)
+    pls_max = MaxPlRatio(data_window, days = days, otm = otm, at_exp = at_exp)
     pls_maxs = c(pls_maxs, pls_max)
     
   }
@@ -75,16 +80,34 @@ AllMaxPlRations = function(data = rub3m, days = 90, otm = 0){
 }
 
 
+day_1 = index(rub3m[1])
+day_t = last(index(rub3m)) - days
+indexs = rub3m[paste0(day_1,'::',day_t)] %>% index
 
+
+
+pls_maxs = AllMaxPlRations(at_exp=T)
+pls_maxs1 = AllMaxPlRations(at_exp=F)
 plot(pls_maxs)
+plot(pls_maxs1)
 
-pls_max_otms = sapply(c(-0.1, -0.05, 0, 0.05, 0.1, 0.15), function(x)AllMaxPlRations(otm=x)) 
+pls_max_otms = sapply(c(-0.05, 0, 0.05), function(x)AllMaxPlRations(otm=x, at_exp=F)) 
 
-pls_max_otms = as.data.frame(pls_max_otms) %>% as.tbl
+pls_max_otms = as.data.frame(pls_max_otms) 
+as.tbl(pls_max_otms)
+pls_max_otms$dates = indexs
 
 
-plsm = pls_max_otms$V5
+pls_max_otms_g = gather(pls_max_otms, key=otms, value = pl, -dates)
+pls_max_otms_g %>% ggvis(~dates,~pl, fill=~otms) %>% layer_lines()
 
+ggplot(data = pls_max_otms_g, aes(x=dates, y=pl, color=otms)) + geom_line()
+
+plsm = pls_max_otms$V3
+
+#
+# Target PL Ratio probability
+#
 plr_interv = pretty(plsm, n = 30)
 plr_cuts = cut(plsm, plr_interv, include.lowest=T)
 plr_freq = table(plr_cuts)/length(plsm)
@@ -96,8 +119,11 @@ plr_n = length(plsm)
 plr_prob = length(plsm[plsm>5]) / plr_n
 plr_prob
 
-require(ggvis)
-pls_max_otms %>% ggvis(~V2,~V1) %>% layer_points()
+
+
+
+
+
 
 # What if we do not hedge?
 
