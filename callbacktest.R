@@ -13,20 +13,31 @@ require(tidyr)
 
 # Final data preparations
 load('rub.RData')
-rub3m = rub[, c('rub', 'swap3m', 'iv3m')]
+rub3m = rub[, c('rub', 'swap1y', 'iv1y')]
 names(rub3m) = c('rub', 'swap', 'iv')
 
 
 days = 90
 otm = 0
+target = 5
 
 #
 # 3m options prices every day
 # 
 
-rub3m$call = rub3m %>% 
+calls = rub3m %>% 
   as.data.frame %>% 
   mutate(call = GBSOption('c', rub, rub*(1+otm), days/365, 0, swap, iv)@price) %>%
+  mutate(pl = call/call[1]-1)
+calls$date = index(rub3m)
+calls$date2 = index(rub3m) + days
+
+callsg = calls %>% group_by(date, date2)
+filter(callsg, date<date2) %>% mutate(max(pl))
+
+
+
+  filter(pl==max(pl)) #ok
   select(call) %>% unlist
 
 
@@ -52,8 +63,9 @@ MaxPlRatio = function(data, days = 90, otm = 0, at_exp = F){
   
   pl_ratio = call_t / call_t[1] - 1
   plr_max = max(pl_ratio)
+  pl_day = which(pl_ratio>target)[1]
   
-  return(plr_max)
+  return(list(plr_max=plr_max, pl_day=pl_day))
 }
 
 #
@@ -62,7 +74,7 @@ MaxPlRatio = function(data, days = 90, otm = 0, at_exp = F){
 
 AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F){
   
-  pls_maxs= sapply(1:(nrow(data)), function(x){
+  pls_maxs= lapply(1:(nrow(data)), function(x){
 
       i=x
       day_1 = index(data[i])
@@ -77,7 +89,7 @@ AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F){
       
       pls_max
     
-  }) %>% unlist
+  }) #%>% unlist
     
   #return(xts(x = pls_maxs, order.by = index(data)))
   return(pls_maxs)
@@ -86,12 +98,11 @@ AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F){
 #
 # Plot result
 #
-
-
+lapply(1:3, function(x)data.frame(x=x, x2=x^2)) %>% unlist
 
 pls_max_otms = {
   
-  pls_max_otms = sapply(c(0, 0.05), function(x)AllMaxPlRations(otm=x, at_exp=T)) 
+  pls_max_otms = sapply(c(0), function(x)AllMaxPlRations(otm=x, days=days, at_exp=F)) 
   pls_max_otms = as.data.frame(pls_max_otms) 
   
   day_1 = index(rub3m[1])
@@ -111,11 +122,11 @@ plot(pls_maxs)
 plot(pls_maxs1)
 
 pls_max_otms_g = gather(pls_max_otms, key=otms, value = pl, -dates)
-pls_max_otms_g %>% ggvis(~dates,~pl, fill=~otms) %>% layer_lines()
+pls_max_otms_g %>% ggvis(~dates,~pl) %>% layer_lines()
 
 ggplot(data = pls_max_otms_g, aes(x=dates, y=pl, color=otms)) + geom_line()
 
-plsm = pls_max_otms$V3
+plsm = pls_max_otms$V2
 
 #
 # Target PL Ratio probability
