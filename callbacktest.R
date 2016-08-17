@@ -13,92 +13,91 @@ require(tidyr)
 
 # Final data preparations
 load('rub.RData')
-rub3m = rub[, c('rub', 'swap1y', 'iv1y')]
+rub3m = rub[, c('rub', 'swap3m', 'iv3m')]
 names(rub3m) = c('rub', 'swap', 'iv')
 
 
+
 days = 90
-otm = 0
+otm = 0.15
 target = 5
 
 #
 # 3m options prices every day
 # 
 
-calls = rub3m %>% 
-  as.data.frame %>% 
-  mutate(call = GBSOption('c', rub, rub*(1+otm), days/365, 0, swap, iv)@price) %>%
-  mutate(pl = call/call[1]-1)
-calls$date = index(rub3m)
-calls$date2 = index(rub3m) + days
-
-callsg = calls %>% group_by(date, date2)
-filter(callsg, date<date2) %>% mutate(max(pl))
-
-
-
-  filter(pl==max(pl)) #ok
-  select(call) %>% unlist
+# calls = rub3m %>% 
+#   as.data.frame %>% as.tbl %>%
+#   mutate(call = GBSOption('c', rub, rub*(1+otm), days/365, 0, swap, iv)@price) %>%
+#   mutate(pl = call/call[1]-1)
 
 
 #
 # Maximum PL ration in option live
-# data = data_window
+#  data_window = rub3m[paste0(index(rub3m)[1], "::",index(rub3m)[1]+days )]
 
-MaxPlRatio = function(data, days = 90, otm = 0, at_exp = F){
+MaxPlRatio = function(data=data_window, days = 90, otm = 0, at_exp = F){
   
  if(at_exp)
    data = c(data[1], data[length(index(data))]) #calc only the first and the last days
+ 
+ data = as.data.frame(data) 
+ data$dates = as.Date(row.names(data))
+ 
+ data = data %>% mutate(t = as.numeric(last(dates)-dates))
   
- data$t = last(index(data)) - index(data) #days til exp column
+ 
+  call_t = data %>%
+    mutate(strike = rub[1]*(1+otm)) %>%
+    mutate(call_price = GBSOption('c', rub, strike, t/365, 0, swap, iv)@price) %>%
+    mutate(pl_ratio = call_price / call_price[1] - 1) %>% 
+    filter(pl_ratio==max(pl_ratio))
   
-  strike = as.numeric(data[1, 'rub'] * (1+otm))
-  
-  call_t = data %>% 
-    as.data.frame %>% 
-    mutate(call_t = GBSOption('c', rub, strike, t/365, 0, swap, iv)@price) %>%
-    select(call_t)
-  
-  call_t = as.numeric(unlist(call_t))
-  
-  pl_ratio = call_t / call_t[1] - 1
-  plr_max = max(pl_ratio)
-  pl_day = which(pl_ratio>target)[1]
-  
-  return(list(plr_max=plr_max, pl_day=pl_day))
+  return(call_t)
 }
+
+MaxPlRatio(data_window)
+
+
 
 #
 # Max PL ratio for all options
 #
 
+
 AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F){
   
-  pls_maxs= lapply(1:(nrow(data)), function(x){
+  lastday = last(index(data)) - days
+  data = data[paste0(index(data[1]),'::',lastday)]
 
-      i=x
-      day_1 = index(data[i])
-      day_t = day_1 + days
-      
-    if(!(day_t > last(index(data)))){
-      
-      data_window = data[paste0(day_1,'::',day_t)]
-      pls_max = MaxPlRatio(data_window, days = days, otm = otm, at_exp = at_exp)
-      
-    } else {pls_max = NULL}
-      
-      pls_max
+  pls_maxs = NULL
+  empti = NULL
+  for(i in 1:(nrow(data))){
+
+    day_1 = index(data[i])
+    day_t = day_1 + days
+    data_window = data[paste0(day_1,'::',day_t)]
+    pls_max = MaxPlRatio(data_window, days = days, otm = otm, at_exp = at_exp)
     
-  }) #%>% unlist
+    if(nrow(pls_max)!=0) pls_max$dates=day_1 #c(empti, i)
     
-  #return(xts(x = pls_maxs, order.by = index(data)))
-  return(pls_maxs)
+    pls_maxs = rbind(pls_maxs, pls_max)
+    
+  }
+
+  #pls_maxs$dates = index(data)[1:(nrow(data)-1)]
+
+  return(pls_maxs %>% select(dates, pl_ratio))
 }
+
+plstest = AllMaxPlRations(otm=otm, at_exp = T)
+
+
 
 #
 # Plot result
 #
-lapply(1:3, function(x)data.frame(x=x, x2=x^2)) %>% unlist
+
 
 pls_max_otms = {
   
@@ -114,34 +113,30 @@ pls_max_otms = {
 }
 
 
-as.tbl(pls_max_otms)
-
-pls_maxs = AllMaxPlRations(at_exp=T)
-pls_maxs1 = AllMaxPlRations(at_exp=F)
-plot(pls_maxs)
-plot(pls_maxs1)
+as.tbl(plstest)
 
 pls_max_otms_g = gather(pls_max_otms, key=otms, value = pl, -dates)
 pls_max_otms_g %>% ggvis(~dates,~pl) %>% layer_lines()
 
 ggplot(data = pls_max_otms_g, aes(x=dates, y=pl, color=otms)) + geom_line()
 
-plsm = pls_max_otms$V2
+
 
 #
 # Target PL Ratio probability
 #
+plsm = plstest$pl_ratio
+
 plr_interv = pretty(plsm, n = 30)
 plr_cuts = cut(plsm, plr_interv, include.lowest=T)
 plr_freq = table(plr_cuts)/length(plsm)
 plr_cumfreq = 1-cumsum(plr_freq)
 
-plot(plr_cumfreq)
+plot(plr_interv[-1], plr_cumfreq)
 
 plr_n = length(plsm)
 plr_prob = length(plsm[plsm>5]) / plr_n
 plr_prob
-
 
 
 
