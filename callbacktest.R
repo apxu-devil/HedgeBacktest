@@ -16,10 +16,8 @@ load('rub.RData')
 rub3m = rub[, c('rub', 'swap3m', 'iv3m')]
 names(rub3m) = c('rub', 'swap', 'iv')
 
-
-
 days = 90
-otm = 0.15
+otm = 0.0
 target = 5
 
 #
@@ -34,9 +32,9 @@ target = 5
 
 #
 # Maximum PL ration in option live
-#  data_window = rub3m[paste0(index(rub3m)[1], "::",index(rub3m)[1]+days )]
+#  
 
-MaxPlRatio = function(data=data_window, days = 90, otm = 0, at_exp = F){
+MaxPlRatio = function(data=data_window, days=90, otm=0, at_exp=F, target_date=F){
   
  if(at_exp)
    data = c(data[1], data[length(index(data))]) #calc only the first and the last days
@@ -50,13 +48,21 @@ MaxPlRatio = function(data=data_window, days = 90, otm = 0, at_exp = F){
   call_t = data %>%
     mutate(strike = rub[1]*(1+otm)) %>%
     mutate(call_price = GBSOption('c', rub, strike, t/365, 0, swap, iv)@price) %>%
-    mutate(pl_ratio = call_price / call_price[1] - 1) %>% 
-    filter(pl_ratio==max(pl_ratio))
+    mutate(pl_ratio = call_price / call_price[1] - 1) 
+    
+  if(target_date==F){
+    call_t = call_t %>% filter(pl_ratio==max(pl_ratio))
+  }
+  else {
+    call_t = call_t %>% filter(pl_ratio>target) %>% filter(row_number()==1)
+  }
   
   return(call_t)
 }
 
-MaxPlRatio(data_window)
+# test:
+#  data_window = rub3m[paste0(index(rub3m)[1], "::",index(rub3m)[1]+days )]
+#  MaxPlRatio(data_window)
 
 
 
@@ -64,54 +70,39 @@ MaxPlRatio(data_window)
 # Max PL ratio for all options
 #
 
-
-AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F){
+AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F,  target_date=F){
   
   lastday = last(index(data)) - days
   data = data[paste0(index(data[1]),'::',lastday)]
 
   pls_maxs = NULL
-  empti = NULL
+  
   for(i in 1:(nrow(data))){
 
     day_1 = index(data[i])
     day_t = day_1 + days
     data_window = data[paste0(day_1,'::',day_t)]
-    pls_max = MaxPlRatio(data_window, days = days, otm = otm, at_exp = at_exp)
+    pls_max = MaxPlRatio(data_window, days = days, otm = otm, at_exp = at_exp, target_date = target_date)
     
     if(nrow(pls_max)!=0) pls_max$dates=day_1 #c(empti, i)
     
     pls_maxs = rbind(pls_maxs, pls_max)
-    
   }
 
-  #pls_maxs$dates = index(data)[1:(nrow(data)-1)]
-
-  return(pls_maxs %>% select(dates, pl_ratio))
+  return(pls_maxs)
 }
 
-plstest = AllMaxPlRations(otm=otm, at_exp = T)
 
+plstest = AllMaxPlRations(otm=otm, at_exp=F, target_date=T)
 
+plstest_days = plstest %>% as.tbl %>% filter(pl_ratio>0) %>% select(t, pl_ratio)
+plstest_days$t = 90 - plstest_days$t
+
+plot(plstest_days$pl_ratio ~ plstest_days$t)
 
 #
 # Plot result
 #
-
-
-pls_max_otms = {
-  
-  pls_max_otms = sapply(c(0), function(x)AllMaxPlRations(otm=x, days=days, at_exp=F)) 
-  pls_max_otms = as.data.frame(pls_max_otms) 
-  
-  day_1 = index(rub3m[1])
-  day_t = last(index(rub3m)) - days
-  indexs = rub3m[paste0(day_1,'::',day_t)] %>% index
-  pls_max_otms$dates = indexs
-  
-  pls_max_otms
-}
-
 
 as.tbl(plstest)
 
