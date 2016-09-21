@@ -11,66 +11,104 @@ require(TTR)
 require(ggvis)
 require(tidyr)
 
-# Final data preparations
-load('rub.RData')
-rub3m = rub[, c('rub', 'swap3m', 'iv3m')]
+# Load data
+load('rub2.RData')
+rub3m = rub1[, c('spot', 'swap1M', 'iv1m')]
 names(rub3m) = c('rub', 'swap', 'iv')
 
-days = 90
-otm = 0.0
+days = 30
+otm = 0.05
 target = 5
 
 #
 # 3m options prices every day
 # 
+XtsToDf = function(xtsData){
+  
+  xtsData = as.data.frame(xtsData)  # from xts to data frame
+  xtsData$Date = as.Date(row.names(xtsData))
+  
+  return(xtsData)
+}
 
-# calls = rub3m %>% 
-#   as.data.frame %>% as.tbl %>%
-#   mutate(call = GBSOption('c', rub, rub*(1+otm), days/365, 0, swap, iv)@price) %>%
-#   mutate(pl = call/call[1]-1)
+#
+# Cummulative PL: rolling strike on worsening price
+# 
+
+RollAgainstPl = function(data=data_window, days=90, otm=0, strat_mode='default'){
+  
+  data = XtsToDf(data)
+  
+  if(strat_mode=='roll')
+    pl= data %>% mutate(chng = rub-lag(rub,default=0), 
+                        t = as.numeric(last(Date)-Date),
+                        cumchng = cumsum(chng)-rub[1], 
+                        mincumchng = cummin(cumchng),
+                        strike = (lag(rub, default=rub[1]) + cumchng) * (1+otm),
+                        call1 = lag(GBSOption('c', rub, strike, t/365, 0, swap, iv)@price, default=0),
+                        call2 = GBSOption('c', rub, lag(strike, default=Inf), t/365, 0, swap, iv)@price,
+                        pl = call2-call1, 
+                        cumpl = lag(cumsum(lead(pl))), 
+                        cumplr = (cumpl+call1[2])/call1[2]-1 )
+  
+  if(strat_mode=='default')
+    pl= data %>% mutate(chng = rub-lag(rub,default=0), 
+                        t = as.numeric(last(Date)-Date),
+                        cumchng = cumsum(chng)-rub[1], 
+                        mincumchng = cummin(cumchng),
+                        strike = rub[1] * (1+otm),
+                        call1 = lag(GBSOption('c', rub, strike, t/365, 0, swap, iv)@price, default=0),
+                        call2 = GBSOption('c', rub, lag(strike, default=Inf), t/365, 0, swap, iv)@price,
+                        pl = call2-call1, 
+                        cumpl = lag(cumsum(lead(pl))), 
+                        cumplr = (cumpl+call1[2])/call1[2]-1 )
+
+  pl_dd = data.frame(Date=data$Date[1], 
+                     pl_max=max(pl$cumplr, na.rm=T), 
+                     drawdown=min(pl$cumplr, na.rm=T))
+
+  return(pl_dd)
+}
+
+# test: RollAgainstPl(data_window, days=90, otm=0.0, withroll=F)
 
 
 #
-# Maximum PL ration in option live
+# Maximum PL ratio through option live
 #  
 
 MaxPlRatio = function(data=data_window, days=90, otm=0, at_exp=F, target_date=F){
   
- if(at_exp)
-   data = c(data[1], data[length(index(data))]) #calc only the first and the last days
- 
- data = as.data.frame(data) 
- data$dates = as.Date(row.names(data))
- 
- data = data %>% mutate(t = as.numeric(last(dates)-dates))
+  data = XtsToDf(data)
   
- 
-  call_t = data %>%
-    mutate(strike = rub[1]*(1+otm)) %>%
-    mutate(call_price = GBSOption('c', rub, strike, t/365, 0, swap, iv)@price) %>%
-    mutate(pl_ratio = call_price / call_price[1] - 1) 
+  if(at_exp) data=data[c(1,nrow(data)),]   # Calc result only at expiration date
+
+ # PL ratio every day through the option life
+  pl_t = data %>%
+    mutate(strike = rub[1]*(1+otm), 
+           t = as.numeric(last(Date)-Date), 
+           call_price = GBSOption('c', rub, strike, t/365, 0, swap, iv)@price,
+           pl_ratio = call_price / call_price[1] - 1) 
+  
     
-  if(target_date==F){
-    call_t = call_t %>% filter(pl_ratio==max(pl_ratio))
-  }
-  else {
-    call_t = call_t %>% filter(pl_ratio>target) %>% filter(row_number()==1)
-  }
+  if(target_date==F)
+    pl_t = pl_t %>% filter(pl_ratio==max(pl_ratio)) # return max PL ratio
+  else 
+    pl_t = pl_t %>% filter(pl_ratio>target) %>% filter(row_number()==1) # return PL ratio at the first reached day
   
-  return(call_t)
+  return(pl_t)
 }
 
 # test:
-#  data_window = rub3m[paste0(index(rub3m)[1], "::",index(rub3m)[1]+days )]
+#  data_window = rub3m[paste0(index(rub3m)[11], "::",index(rub3m)[11]+days )]
 #  MaxPlRatio(data_window)
-
 
 
 #
 # Max PL ratio for all options
 #
 
-AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F,  target_date=F){
+AllMaxPlRations = function(data=rub3m, days=90, otm=0, at_exp=F,  target_date=F){
   
   lastday = last(index(data)) - days
   data = data[paste0(index(data[1]),'::',lastday)]
@@ -82,9 +120,11 @@ AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F,  target
     day_1 = index(data[i])
     day_t = day_1 + days
     data_window = data[paste0(day_1,'::',day_t)]
-    pls_max = MaxPlRatio(data_window, days = days, otm = otm, at_exp = at_exp, target_date = target_date)
     
-    if(nrow(pls_max)!=0) pls_max$dates=day_1 #c(empti, i)
+    #pls_max = MaxPlRatio(data_window, days=days, otm=otm, at_exp=at_exp, target_date=target_date)
+    pls_max = RollAgainstPl(data_window, days = days, otm = otm, strat_mode = 'default')
+    
+    #if(nrow(pls_max)!=0) pls_max$dates=day_1 #c(empti, i)
     
     pls_maxs = rbind(pls_maxs, pls_max)
   }
@@ -93,13 +133,12 @@ AllMaxPlRations = function(data = rub3m, days = 90, otm = 0, at_exp = F,  target
 }
 
 
-plstest = AllMaxPlRations(otm=otm, at_exp=F, target_date=T)
+plstest = AllMaxPlRations(days=days, otm=otm, at_exp=F, target_date=F)
 
-plstest_days = plstest %>% as.tbl %>% filter(pl_ratio>0) %>% select(t, pl_ratio)
-plstest_days$t = 90 - plstest_days$t
-
-plot(plstest_days$pl_ratio ~ plstest_days$t)
-
+plot(plstest$pl_ratio ~ plstest$Date)
+plot(plstest$pl_max ~ plstest$Date, type='l', ylim=c(0, 20))
+plot(plstest$drawdown ~ plstest$Date)
+plot(plstest$drawdown ~ plstest$pl_max)
 #
 # Plot result
 #
@@ -116,8 +155,7 @@ ggplot(data = pls_max_otms_g, aes(x=dates, y=pl, color=otms)) + geom_line()
 #
 # Target PL Ratio probability
 #
-plsm = plstest$pl_ratio
-
+plsm = plstest$pl_max
 plr_interv = pretty(plsm, n = 30)
 plr_cuts = cut(plsm, plr_interv, include.lowest=T)
 plr_freq = table(plr_cuts)/length(plsm)
@@ -125,12 +163,8 @@ plr_cumfreq = 1-cumsum(plr_freq)
 
 plot(plr_interv[-1], plr_cumfreq)
 
-plr_n = length(plsm)
-plr_prob = length(plsm[plsm>5]) / plr_n
+plr_prob = sum(plsm>5) / length(plsm)
 plr_prob
-
-
-
 
 
 
