@@ -1,0 +1,25 @@
+{
+    "contents" : "",
+    "created" : 1470939957120.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "B3FE7AEB",
+    "lastKnownWriteTime" : 0,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "5zrb8tzdvs",
+        "caption" : "pls_max_otms_g",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=pls_max_otms_g&cache_key=5zrb8tzdvs",
+        "displayedObservations" : 7794,
+        "environment" : "",
+        "object" : "pls_max_otms_g",
+        "totalObservations" : 7794,
+        "variables" : 3
+    },
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "type" : "r_dataframe"
+}
